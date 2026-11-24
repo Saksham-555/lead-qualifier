@@ -5,6 +5,7 @@ from typing import Optional
 import anthropic
 from pydantic import ValidationError
 
+from config import load_settings
 from prompts import SYSTEM_PROMPT, build_user_prompt
 from schema import Lead, QualifyResult
 
@@ -26,7 +27,17 @@ def _parse(text: str) -> QualifyResult:
     return QualifyResult.model_validate(json.loads(text[start : end + 1]))
 
 
-def qualify_lead(lead: Lead, client, model: str = "claude-haiku-5-5") -> Outcome:
+def qualify_lead(lead: Lead, client=None, model: Optional[str] = None) -> Outcome:
+    """Spec form is qualify_lead(lead); client/model can be injected (tests, evals, app)."""
+    if client is None or model is None:
+        settings = load_settings()
+        model = model or settings.model
+        client = client or anthropic.Anthropic(
+            api_key=settings.api_key,
+            base_url=settings.base_url,
+            timeout=settings.timeout_seconds,
+            max_retries=0,
+        )
     error = None
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
@@ -39,8 +50,12 @@ def qualify_lead(lead: Lead, client, model: str = "claude-haiku-5-5") -> Outcome
             text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
         except anthropic.APIError as e:
             return Outcome("failed", attempt, error=f"API error: {type(e).__name__}")
+        except Exception as e:  # never let an unexpected error skip saving the lead
+            return Outcome("failed", attempt, error=f"unexpected error: {type(e).__name__}")
         try:
             return Outcome("ok", attempt, result=_parse(text))
         except (ValueError, ValidationError) as e:  # JSONDecodeError is a ValueError
             error = str(e)[:500]
+        except Exception as e:
+            return Outcome("failed", attempt, error=f"unexpected error: {type(e).__name__}")
     return Outcome("failed", MAX_ATTEMPTS, error="invalid model output after retry")

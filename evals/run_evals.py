@@ -29,18 +29,28 @@ def main() -> int:
         api_key=settings.api_key,
         base_url=settings.base_url,
         timeout=settings.timeout_seconds,
+        max_retries=0,
     )
     cases = load_cases()
-    correct = 0
+    if not cases:
+        print("No cases found.")
+        return 1
+    correct = errors = 0
     for i, case in enumerate(cases, 1):
-        lead = Lead(**case["lead"])
-        outcome = qualify_lead(lead, client, settings.model)
-        got = outcome.result.intent if outcome.result else f"FAILED ({outcome.error})"
+        try:
+            lead = Lead(**case["lead"])
+            outcome = qualify_lead(lead, client, settings.model)
+            got = outcome.result.intent if outcome.result else f"FAILED ({outcome.error})"
+        except Exception as e:
+            lead, got = None, f"ERROR ({type(e).__name__})"
+        if got.startswith(("FAILED", "ERROR")):
+            errors += 1
         match = got == case["expected"]
         correct += match
-        print(f"{i:2d}. {lead.name[:20]:<20} expected={case['expected']:<5} got={got:<5} {'OK' if match else 'MISS'}")
+        name = lead.name[:20] if lead else "?"
+        print(f"{i:2d}. {name:<20} expected={case['expected']:<5} got={got:<5} {'OK' if match else 'MISS'}")
     print(f"\nAccuracy: {correct}/{len(cases)} = {correct / len(cases):.0%}")
-    return 0
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":

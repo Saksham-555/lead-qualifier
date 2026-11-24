@@ -1,6 +1,7 @@
 import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
 from functools import lru_cache
 
 import anthropic
@@ -14,18 +15,26 @@ from storage import JsonlSink, ResultSink
 logger = logging.getLogger("lead_qualifier")
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Lead Qualifier")
-
-
 @lru_cache
 def get_settings():
     return load_settings()
 
 
+@asynccontextmanager
+async def lifespan(_app):
+    get_settings()  # fail fast if LQ_API_KEY is missing
+    yield
+
+
+app = FastAPI(title="Lead Qualifier", lifespan=lifespan)
+
+
 @lru_cache
 def get_client():
     s = get_settings()
-    return anthropic.Anthropic(api_key=s.api_key, base_url=s.base_url, timeout=s.timeout_seconds)
+    return anthropic.Anthropic(
+        api_key=s.api_key, base_url=s.base_url, timeout=s.timeout_seconds, max_retries=0
+    )
 
 
 @lru_cache
