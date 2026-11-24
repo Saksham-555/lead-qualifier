@@ -13,3 +13,4 @@
 - Review fix 11: run_evals.py catches per-case errors, handles zero cases, and exits 1 if any case failed/errored. Evals not run.
 - Review finding 5 tests (tests/test_more.py): 429/500/503 -> failed, one call, saved; unexpected error saved; client max_retries==0; JsonlSink; config defaults/required/key not in repr; startup fails without key; save failure still 200; logs have no personal data or key; prompt delimiter tests.
 - Skipped: findings 4, 7, 9, 12 (not requested). All 7 requested findings were verified in code and held up.
+- README: wrote README.md (run steps, design choices, failure handling, eval result, known limitations). Why: SPEC.md README section. Evals not run, nothing committed.
